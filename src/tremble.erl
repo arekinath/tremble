@@ -2,7 +2,7 @@
 %% tremble
 %% tuple-relational mapper
 %%
-%% Copyright 2014 Alex Wilson <alex@uq.edu.au>, The University of Queensland
+%% Copyright 2015 Alex Wilson <alex@uq.edu.au>, The University of Queensland
 %% All rights reserved.
 %%
 %% Redistribution and use in source and binary forms, with or without
