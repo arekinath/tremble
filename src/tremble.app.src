@@ -1,0 +1,19 @@
+{application, tremble,
+ [
+  {description, "tuple-relational mapper"},
+  {vsn, "1.0.0"},
+  {registered, []},
+  {included_applications, [
+  ]},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  jsx,
+                  epgsql,
+                  poolboy,
+                  fuse
+                 ]},
+  {mod, { tremble_app, []}},
+  {env, [
+  ]}
+ ]}.
