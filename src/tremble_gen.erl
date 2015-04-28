@@ -32,7 +32,7 @@
 -export([
     gen_type_parsers/0,
     gen_erquery/1,
-    gen_all/1,
+    gen_all/1, gen_is_table_record/1,
     gen_find1/2, gen_find2/1,
     gen_create/3,
     gen_update1/1, gen_update2/3,
@@ -77,6 +77,12 @@ gen_erquery(_M) ->
                 Err -> Err
             end
         end).
+
+gen_is_table_record(Tables) ->
+    DefaultClause = {clause,1,[{var,1,'_'}],[],[{atom,1,'false'}]},
+    TableClauses = [{clause,1,[{atom,1,Rec}],[],[{atom,1,'true'}]} || {_Table, Rec, _Key} <- Tables],
+    Clauses = lists:reverse([DefaultClause | TableClauses]),
+    {function,1,is_table_record,1,Clauses}.
 
 gen_all(Tables) ->
     codegen:gen_function(all, [
