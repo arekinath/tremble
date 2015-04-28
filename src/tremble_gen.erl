@@ -124,8 +124,9 @@ gen_create(Tables, Recs, PostHooks) ->
     TableCols = lists:map(fun({Table, Rec, Key}) ->
         {Rec, Fields} = lists:keyfind(Rec, 1, Recs),
         FieldNames = [{Field, I} || {I, {record_field,_,{atom,_,Field}}} <- lists:zip(lists:seq(2,length(Fields)+1), Fields)],
+        KeyMappings = [{KeyIdx, proplists:get_value(Field, FieldNames)} || {KeyIdx, Field} <- lists:zip(lists:seq(1,length(Key)), Key)],
         KeyFields = string:join([atom_to_list(A) || A <- Key], ", "),
-        {Table, Rec, KeyFields, FieldNames}
+        {Table, Rec, KeyFields, FieldNames, KeyMappings}
     end, Tables),
     Hook = {block, 1, [{var,1,'T'} | [
             {call,1,{atom,1,Func},[{var,1,'R'},{var,1,'T'}]}
@@ -141,29 +142,36 @@ gen_create(Tables, Recs, PostHooks) ->
                 " values (", string:join(ValParts, ", "), ")",
                 " returning ", {'$var',KeyFields}]),
             case tremble:equery(Q, Params) of
-                {ok, _, _, [T]} when is_tuple(T) ->
+                {ok, _, _, [Traw]} when is_tuple(Traw) ->
+                    T = lists:foldl(fun({KeyIdx, RecIdx}, Rec) ->
+                        setelement(RecIdx, Rec, element(KeyIdx, Traw))
+                    end, R, {'$var',KeyMappings}),
                     run_hooks(fun() -> {'$form', Hook} end),
-                    case T of
-                        {Id} -> {ok, Id};
-                        _ -> {ok, T}
-                    end;
-                {ok, _, [T]} when is_tuple(T) ->
+                    {ok, T};
+                {ok, _, [Traw]} when is_tuple(Traw) ->
+                    T = lists:foldl(fun({KeyIdx, RecIdx}, Rec) ->
+                        setelement(RecIdx, Rec, element(KeyIdx, Traw))
+                    end, R, {'$var',KeyMappings}),
                     run_hooks(fun() -> {'$form', Hook} end),
-                    case T of
-                        {Id} -> {ok, Id};
-                        _ -> {ok, T}
-                    end;
+                    {ok, T};
+                {ok, [Traw]} when is_tuple(Traw) ->
+                    T = lists:foldl(fun({KeyIdx, RecIdx}, Rec) ->
+                        setelement(RecIdx, Rec, element(KeyIdx, Traw))
+                    end, R, {'$var',KeyMappings}),
+                    run_hooks(fun() -> {'$form', Hook} end),
+                    {ok, T};
                 ok ->
-                    T = {},
+                    T = R,
                     run_hooks(fun() -> {'$form', Hook} end),
                     ok;
-                T when is_tuple(T) and (element(1,T) =:= ok) ->
+                Ret when is_tuple(Ret) and (element(1,Ret) =:= ok) ->
+                    T = R,
                     run_hooks(fun() -> {'$form', Hook} end),
                     ok;
                 Err -> Err
             end
         end
-        || {Table, Rec, KeyFields, FieldNames} <- TableCols]).
+        || {Table, Rec, KeyFields, FieldNames, KeyMappings} <- TableCols]).
 
 gen_update1(Tables) ->
     codegen:gen_function(update, [
@@ -179,7 +187,7 @@ gen_update2(Tables, Recs, PostHooks) ->
         {Table, Rec, FieldNames}
     end, Tables),
     Hook = {block, 1, [{var,1,'T'} | [
-            {call,1,{atom,1,Func},[{var,1,'R'},{var,1,'T'},{var,1,'SetFields'}]}
+            {call,1,{atom,1,Func},[{var,1,'R'},{var,1,'SetFields'},{var,1,'T'}]}
         || Func <- PostHooks]]},
     codegen:gen_function(update, [
         fun(R, WhereAttrs) when is_tuple(R) and (element(1,R) =:= {'$var',Rec}) ->
