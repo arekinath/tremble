@@ -28,8 +28,29 @@
 
 -module(tremble).
 
+-export([start/0, start/1]).
 -export([config/1, config/2]).
 -export([squery/1, equery/2, transaction/1]).
+
+start() ->
+    start(tremble:config(pg_options, [
+        {database, "postgres"},
+        {host, "localhost"},
+        {username, "postgres"},
+        {password, "postgres"},
+        {timeout, 5000}])).
+
+start(Opts) ->
+    ok = application:ensure_started(tremble),
+    case lists:keytake(size, 1, Opts) of
+        {value, {size, Size}, Opts2} -> ok;
+        false -> Size = tremble:config(pool_size, 10), Opts2 = Opts
+    end,
+    case lists:keytake(overflow, 1, Opts2) of
+        {value, {overflow, Overflow}, Opts3} -> ok;
+        false -> Overflow = tremble:config(pool_size, 10) div 2, Opts3 = Opts
+    end,
+    tremble_sup:start_pool(Opts3, Size, Overflow).
 
 dpath_resolve(Item, []) -> Item;
 dpath_resolve(List, ['_' | Rest]) ->
