@@ -47,6 +47,7 @@ gen_type_parsers() ->
         codegen:gen_function(tp_identity, fun(V) -> V end),
         codegen:gen_function(tp_jsonb, fun(null) -> []; (B) when is_binary(B) -> jsx:decode(B) end),
         codegen:gen_function(tp_integer, fun(null) -> null; (V) when is_integer(V) -> V end),
+        codegen:gen_function(tp_big_integer, fun(null) -> null; (V) when is_integer(V) -> V end),
         codegen:gen_function(tp_string, fun(null) -> null; (V = [I | _]) when is_list(V) and is_integer(I) -> V; (V) when is_binary(V) -> binary_to_list(V) end),
         codegen:gen_function(tp_binary, fun(null) -> null; (V) when is_binary(V) -> V end),
         codegen:gen_function(tp_float, fun(null) -> null; (V) when is_float(V) -> V; (V) when is_integer(V) -> float(V) end),
@@ -282,6 +283,10 @@ gen_make_params(Recs, RecTypes) ->
                     codegen:exprs(fun(V0) -> case V0 of
                         null -> {null, null};
                         I when is_integer(I) -> {int, I} end end);
+                big_integer ->
+                    codegen:exprs(fun(V0) -> case V0 of
+                        null -> {null, null};
+                        I when is_integer(I) -> {bigint, I} end end);
                 float ->
                     codegen:exprs(fun(V0) -> case V0 of
                         null -> {null, null};

@@ -47,7 +47,7 @@ parse_transform(Forms, _Options) ->
 xform(R = {attribute,_L,module,N}, S = #state{out = OF}) ->
     Exports = [
         eval_form("-export([erquery/3, all/1, find/1, find/2, merge/2, match/2, create/1, update/1, update/2, delete/1, delete/2])."),
-        eval_form("-export([tp_identity/1, tp_integer/1, tp_jsonb/1, tp_string/1, tp_binary/1, tp_float/1, tp_boolean/1, tp_date/1, tp_time/1, tp_datetime/1]).")
+        eval_form("-export([tp_identity/1, tp_integer/1, tp_jsonb/1, tp_string/1, tp_binary/1, tp_float/1, tp_boolean/1, tp_date/1, tp_time/1, tp_datetime/1, tp_big_integer/1]).")
     ],
     S#state{out = Exports ++ [R | OF], mod = N};
 xform(R = {attribute,_L,record,{N, Fs}}, S = #state{out = OF, recs = Recs}) ->

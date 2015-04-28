@@ -28,6 +28,7 @@
 
 -include_lib("epgsql/include/epgsql.hrl").
 -type jsonb() :: [{atom()|binary(),jsonb()}].
+-type big_integer() :: integer().
 -type date() :: {Year :: integer(), Month :: integer(), Day :: integer()}.
 -type time() :: {Hour :: integer(), Min :: integer(), Second :: float()}.
 -type datetime() :: {date(), time()}.
