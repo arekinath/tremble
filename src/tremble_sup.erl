@@ -30,7 +30,7 @@
 
 -behaviour(supervisor).
 
--export([start_pool/3]).
+-export([start_pool/3, stop_pool/0]).
 -export([start_link/0, init/1]).
 
 start_link() ->
@@ -44,6 +44,10 @@ start_pool(PgOpts, Size, Overflow) ->
              {max_overflow, Overflow}],
             [PgOpts, tr_db_fuse]),
     supervisor:start_child(?MODULE, Pool).
+
+stop_pool() ->
+    ok = supervisor:terminate_child(?MODULE, tr_db_pool),
+    ok = supervisor:delete_child(?MODULE, tr_db_pool).
 
 init(_Args) ->
     {ok,
