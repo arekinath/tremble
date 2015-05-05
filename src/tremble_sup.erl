@@ -46,8 +46,11 @@ start_pool(PgOpts, Size, Overflow) ->
     supervisor:start_child(?MODULE, Pool).
 
 stop_pool() ->
-    ok = supervisor:terminate_child(?MODULE, tr_db_pool),
-    ok = supervisor:delete_child(?MODULE, tr_db_pool).
+    case supervisor:terminate_child(?MODULE, tr_db_pool) of
+        ok ->
+            supervisor:delete_child(?MODULE, tr_db_pool);
+        Err -> Err
+    end.
 
 init(_Args) ->
     {ok,
