@@ -111,13 +111,13 @@ transaction(Fun) ->
             poolboy:transaction(tr_db_pool, fun(Worker) ->
                 put(tr_post_commit_hooks, []),
                 put(tr_pgsql_conn, Worker),
-                {ok, _, _} = gen_server:call(Worker, {squery, "begin transaction"}),
+                ok = gen_server:call(Worker, open_tx),
                 Result = (catch Fun()),
                 case Result of
                     {'EXIT', _} ->
-                        {ok, _, _} = gen_server:call(Worker, {squery, "rollback"}, 30000);
+                        ok = gen_server:call(Worker, {close_tx, "rollback"}, 30000);
                     _ ->
-                        {ok, _, _} = gen_server:call(Worker, {squery, "commit"}, 30000)
+                        ok = gen_server:call(Worker, {close_tx, "commit"}, 30000)
                 end,
                 erase(tr_pgsql_conn),
                 Hooks = get(tr_post_commit_hooks),

@@ -33,7 +33,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
--record(state, {c, fuse}).
+-record(state, {c, fuse, txclient, txmon}).
 
 start_link(Args) ->
     gen_server:start_link(?MODULE, Args, []).
@@ -51,6 +51,48 @@ connect(PgOpts0, InitialState) ->
     {value, {_, PgPass}, PgOpts3} = lists:keytake(password, 1, PgOpts2),
     {ok, C} = epgsql:connect(PgHost, PgUser, PgPass, PgOpts3),
     {ok, InitialState#state{c = C}}.
+
+handle_call(open_tx, _From, #state{c=undefined}=State) ->
+    {reply, {error, fuse_blown}, State};
+handle_call(open_tx, From = {Pid,_}, #state{txclient=undefined,c=Conn,fuse=F}=State) ->
+    case epgsql:squery(Conn, "begin transaction") of
+        {error, closed} ->
+            gen_server:reply(From, {error, closed}),
+            fuse:melt(F),
+            {stop, closed_during_query, State};
+        Err when is_tuple(Err) and (element(1,Err) =:= error) ->
+            {reply, Err, State};
+        Res when is_tuple(Res) and (element(1,Res) =:= ok) ->
+            gen_server:reply(From, ok),
+            MonRef = monitor(process, Pid),
+            {noreply, State#state{txclient=Pid,txmon=MonRef}}
+    end;
+handle_call(open_tx, {Pid,_}, #state{txclient=Pid}=State) ->
+    {reply, {error, nested_transaction}, State};
+handle_call(open_tx, From = {Pid,_}, #state{txclient=OldPid}=State) ->
+    % we must have been released back to the pool and taken by a new process
+    % probably best if we just panic and drop the connection
+    gen_server:reply(From, {error, {transaction_still_open, OldPid}}),
+    {stop, {transaction_stolen, Pid}, State};
+
+handle_call({close_tx,_}, _From, #state{c=undefined}=State) ->
+    {reply, {error, fuse_blown}, State};
+handle_call({close_tx,Type}, From = {Pid,_}, #state{txclient=Pid,c=Conn,fuse=F}=State) ->
+    case epgsql:squery(Conn, Type) of
+        {error, closed} ->
+            gen_server:reply(From, {error, closed}),
+            fuse:melt(F),
+            {stop, closed_during_query, State};
+        Err when is_tuple(Err) and (element(1,Err) =:= error) ->
+            {reply, Err, State};
+        Res when is_tuple(Res) and (element(1,Res) =:= ok) ->
+            gen_server:reply(From, ok),
+            demonitor(State#state.txmon),
+            {noreply, State#state{txclient=undefined,txmon=undefined}}
+    end;
+handle_call({close_tx,_}, From = {Pid, _}, #state{txclient=OldPid}=State) ->
+    gen_server:reply(From, {error, {not_transaction_owner, OldPid}}),
+    {stop, {transaction_stolen, Pid}, State};
 
 handle_call({squery, _Sql}, _From, #state{c=undefined}=State) ->
     {reply, {error, fuse_blown}, State};
@@ -103,6 +145,11 @@ handle_call(_Request, _From, State) ->
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
+
+handle_info({'DOWN', _, _, _, _}, #state{txmon = undefined}=State) ->
+    {noreply, State};
+handle_info({'DOWN', Mon, _, Pid, _}, #state{txmon = Mon, txclient = Pid}=State) ->
+    {stop, {tx_owner_died, Pid}, State};
 
 handle_info(ping, #state{c = undefined,fuse=F}=State) ->
     case fuse:ask(F, sync) of
